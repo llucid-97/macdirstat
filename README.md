@@ -33,6 +33,42 @@ cargo run --release
 cargo run --release -- /path/to/scan
 ```
 
+## Read-only CLI
+
+Build and install the CLI without any GUI dependencies:
+
+```sh
+cargo build --release --no-default-features --features cli --bin macdirstat-cli
+mkdir -p ~/.local/bin
+install -m 755 target/release/macdirstat-cli ~/.local/bin/macdirstat-cli
+macdirstat-cli --top 30 "$HOME" > scan.json
+```
+
+This keeps the Cargo-installed GUI command intact. `macdirstat-cli` writes
+JSON to stdout and progress to stderr. The JSON contains totals, largest files,
+largest directories (excluding the scan root), and up to 100 read errors.
+Exit status is 0 for a complete scan, 2 for a partial scan, or 1 for invalid input
+or a fatal error. All sizes are exact byte counts, ranked by **allocated bytes**
+(`st_blocks * 512`), with logical sizes included for comparison.
+
+The CLI uses a serial, streaming filesystem walk rather than the GUI's full-tree
+bulk scanner. It retains only the top results, up to 256 open directory frames,
+and an inode index for files with multiple hard links. Memory for that index grows
+with the number of hard-linked files, not every file in the tree. Each hard-linked
+file is counted once, under whichever path is encountered first. Child symlinks
+are measured but not followed. An explicitly supplied root symlink is resolved.
+Non-UTF-8 paths include `path_bytes_hex` for lossless use by callers.
+
+Other filesystems, including mounted network shares, are skipped and counted in
+`other_filesystems_skipped`. Scan the Data volume or a home directory explicitly
+on macOS; scanning `/` alone may miss the separately mounted Data volume.
+Unreadable paths, disappearing files, and the depth limit produce a partial scan;
+its totals are lower bounds. Full Disk Access restrictions still apply.
+
+Allocated bytes are **not a promise of space recovered by deletion**: APFS clones,
+snapshots, compression, and hard links outside the scan can change that amount.
+The CLI has no delete operation and does not create a scan database.
+
 ## How it works
 
 MacDirStat scans directories using the macOS `getattrlistbulk` syscall, which retrieves multiple directory entries with their attributes in a single kernel call — avoiding per-file overhead. Directory traversal is parallelized across cores using rayon, with `openat()` for efficient relative path resolution.

@@ -1,8 +1,12 @@
+#[cfg(feature = "gui")]
 pub mod app;
+#[cfg(feature = "gui")]
 pub mod model;
-#[cfg(target_os = "macos")]
+#[cfg(all(feature = "gui", target_os = "macos"))]
 pub(crate) mod objc_ffi;
+#[cfg(feature = "gui")]
 pub mod scan;
+#[cfg(feature = "gui")]
 pub mod ui;
 
 /// Format a byte count as a human-readable string (e.g., "1.2 GB", "340.5 MB").
